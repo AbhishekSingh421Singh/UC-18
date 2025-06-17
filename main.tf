@@ -37,8 +37,3 @@ module "cloudwatch" {
   source               = "./modules/cloudwatch"
   lambda_function_name = var.lambda_function_name
 }
-
-module "ecr" {
-  source           = "./modules/ecr"
-  repository_name  = "uc18-image-processor"
-}
