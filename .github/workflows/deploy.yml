@@ -1,4 +1,4 @@
-name: Deploy Image Processing Pipeline
+name: Deploy Image Processing CI/CD Pipeline
 
 on:
   push:
