@@ -1,25 +1,35 @@
-import json
 import boto3
-from PIL import Image
 import os
+import tempfile
+from PIL import Image
 
-def lambda_handler(event, context):
-    s3 = boto3.client('s3')
-    for record in event['Records']:
-        bucket = record['s3']['bucket']['name']
-        key = record['s3']['object']['key']
-        download_path = f'/tmp/{key}'
-        upload_path =key}'
+s3 = boto3.client('s3')
 
-        s3.download_file(bucket, key, download_path)
+def handler(event, context):
+    # Extract bucket and object key from event
+    record = event['Records'][0]
+    source_bucket = record['s3']['bucket']['name']
+    object_key = record['s3']['object']['key']
+    
+    # Define destination bucket
+    destination_bucket = os.environ['PROCESSED_BUCKET']
 
-        with Image.open(download_path) as img:
-            img = img.convert("L")  # Convert to grayscale
-            img.save(upload_path)
+    # Download image to temp file
+    with tempfile.NamedTemporaryFile() as tmp_file:
+        s3.download_file(source_bucket, object_key, tmp_file.name)
+        
+        # Open and process image
+        with Image.open(tmp_file.name) as img:
+            img = img.resize((512, 512))  # Resize example
 
-        s3.upload_file(upload_path, os.environ['PROCESSED_BUCKET'], f'processed-{key}')
+            # Save processed image
+            processed_path = tmp_file.name + "_processed.jpg"
+            img.save(processed_path)
 
+            # Upload to destination bucket
+            s3.upload_file(processed_path, destination_bucket, f"processed/{object_key}")
+    
     return {
         'statusCode': 200,
-        'body': json.dumps('Image processed successfully')
+        'body': f"Image {object_key} processed and uploaded to {destination_bucket}"
     }

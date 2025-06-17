@@ -1,0 +1,59 @@
+name: Deploy Image Processing Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: uc18-image-processor
+  LAMBDA_FUNCTION_NAME: uc18-image-processor
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Configure AWS credentials using OIDC
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        role-to-assume: ${{ secrets.ROLE}}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+
+    - name: Build and push Docker image
+      run: |
+        IMAGE_TAG=latest
+        IMAGE_URI="${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:$IMAGE_TAG"
+        docker build -t $IMAGE_URI ./lambda
+        docker push $IMAGE_URI
+        echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
+
+    - name: Terraform Init
+      run: terraform init
+
+    - name: Terraform FMT
+      run: terraform fmt
+
+    - name: Terraform validate
+      run: terraform validate
+
+    - name: Terraform Plan
+      run: terraform plan -var="image_uri=${{ env.IMAGE_URI }}"
+
+    - name: Terraform Apply
+      run: terraform apply -auto-approve -var="image_uri=${{ env.IMAGE_URI }}"
